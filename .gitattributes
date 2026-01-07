@@ -1,0 +1,21 @@
+# Handle line endings automatically for files detected as text 
+# and force them to use LF (Linux/Mac style) line endings.
+* text=auto eol=lf
+
+# Explicitly set common web and python files to LF
+*.js      text eol=lf
+*.jsx     text eol=lf
+*.ts      text eol=lf
+*.tsx     text eol=lf
+*.py      text eol=lf
+*.json    text eol=lf
+*.css     text eol=lf
+*.html    text eol=lf
+
+# Denote all files that are truly binary and should not be modified
+*.png     binary
+*.jpg     binary
+*.jpeg    binary
+*.gif     binary
+*.ico     binary
+*.pdf     binary
