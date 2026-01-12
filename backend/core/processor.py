@@ -1,57 +1,39 @@
-from transformers import pipeline
-from typing import Optional
+from google import genai
+from dotenv import load_dotenv
 
-# Load QA model once (IMPORTANT: do NOT reload per request)
-qa_pipeline = pipeline(
-    "question-answering",
-    model="distilbert-base-cased-distilled-squad"
-)
+load_dotenv()
+
+# Gemini client auto-loads GEMINI_API_KEY from .env
+client = genai.Client()
 
 
-def extract_structured_info(
-    extracted_text: str,
-    question: Optional[str] = None
-) -> str:
-    """
-    Answer a question based ONLY on the PDF text.
-    If no question is provided, give a short summary-style answer.
-    """
+def answer_from_notice(notice_text: str, question: str) -> str:
+    prompt = f"""
+You are explaining a school or scholarship notice to a parent.
 
-    # Safety checks
-    if not extracted_text or not extracted_text.strip():
-        return "Notice ka text samajh nahi aaya."
+NOTICE TEXT:
+{notice_text}
 
-    # If no question asked → default helpful prompt
-    if not question or not question.strip():
-        question = "What should the parent do?"
+QUESTION FROM PARENT:
+{question}
 
-    # Trim context to avoid overloading model
-    context = extracted_text.strip()
+Rules:
+- Answer ONLY what the question asks
+- Keep it VERY short (1–2 sentences max)
+- Use simple spoken Hindi (Hinglish)
+- If the answer is not mentioned in the notice, say:
+  "Notice mein mention nahi hai."
+- If date, document, or process is mentioned, say it clearly
 
-    # Hard limit context size (VERY IMPORTANT)
-    MAX_CHARS = 3000
-    if len(context) > MAX_CHARS:
-        context = context[:MAX_CHARS]
+Answer:
+"""
 
-    try:
-        result = qa_pipeline(
-            question=question,
-            context=context
-        )
+    response = client.models.generate_content(
+        model="gemini-2.5-flash",
+        contents=prompt
+    )
 
-        answer = result.get("answer", "").strip()
-
-        if not answer:
-            return "Is notice mein is sawaal ka clear jawab nahi diya gaya hai."
-
-        # Force short answers (hackathon demo friendly)
-        if len(answer.split()) > 25:
-            answer = " ".join(answer.split()[:25]) + "..."
-
-        return answer
-
-    except Exception:
-        return "Is notice ko samajhne mein dikkat aa rahi hai."
+    return response.text.strip()
 
 
 
