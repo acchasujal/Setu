@@ -14,8 +14,11 @@ backend/venv/
 backend/.venv/
 backend/env/
 backend/__pycache__/
+backend/core/__pycache__/
+backend/core/__pycache__/*.pyc
 backend/*.pyc
 backend/.pytest_cache/
+backend/static/audio/*
 
 # --- Environment & Secret Files ---
 # Never push your API keys to GitHub
@@ -33,6 +36,27 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
+# Ignore SQLite databases
+*.db
+*.sqlite
+*.sqlite3
+
+# Ignore temporary WAL and SHM files (created during active database use)
+*.db-wal
+*.db-shm
+
+# Python bytecode and cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.coverage
+htmlcov/
+
 # --- OS Specific ---
 .DS_Store
 Thumbs.db
+
+backend/core/__pycache__/pdf_reader.cpython-313.pyc
+backend/core/__pycache__/processor.cpython-313.pyc

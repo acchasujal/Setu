@@ -5,6 +5,16 @@ import type React from "react"
 import { useState, useRef, useEffect } from "react"
 import { Mic, Camera, Keyboard, Play, Calendar, Banknote, Sun, Bell } from "lucide-react"
 
+// API URL from environment variable, default to localhost
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
+
+// Simple logger utility for consistent debugging
+const logger = {
+  log: (msg: string) => console.log(`[SETU-PWA] ${msg}`),
+  error: (msg: string) => console.error(`[SETU-PWA-ERROR] ${msg}`),
+  warn: (msg: string) => console.warn(`[SETU-PWA-WARN] ${msg}`),
+}
+
 type AppState = "idle" | "recording" | "processing" | "response"
 type Language = "hindi" | "english" | "marathi"
 
@@ -137,14 +147,25 @@ export default function SetuApp() {
   const [showLanguageDropdown, setShowLanguageDropdown] = useState(false)
   const [response, setResponse] = useState<{ summary: string[]; audioUrl: string } | null>(null)
   const [notices, setNotices] = useState<NoticeItem[]>([])
+  const [isPlayingAudio, setIsPlayingAudio] = useState(false)
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const audioChunksRef = useRef<Blob[]>([])
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const audioPlayerRef = useRef<HTMLAudioElement | null>(null)
+  const uploadedPdfRef = useRef<File | null>(null)
 
   const t = translations[language]
 
   useEffect(() => {
-    // BACKEND_INTEGRATION_POINT: fetchStudentNotices
+    // Log API configuration on mount for debugging
+    console.log("[SETU-INIT] Component mounted")
+    console.log("[SETU-INIT] API_URL:", API_URL)
+    console.log("[SETU-INIT] NEXT_PUBLIC_API_URL env:", process.env.NEXT_PUBLIC_API_URL)
+    console.log("[SETU-INIT] Window location:", window.location.href)
+    logger.log("Component initialized with language: " + language)
+    
+    // Fetch chat history on mount (optional - can be used for history display)
+    // For now, keeping mock notices
     const mockNotices: NoticeItem[] = [
       { id: "1", title: "Exam Schedule", date: "आज", tag: "Rohan - Class 5B", type: "exam" },
       { id: "2", title: "Fee Payment Reminder", date: "कल", tag: "Rohan - Class 5B", type: "fee" },
@@ -171,89 +192,312 @@ export default function SetuApp() {
 
   const startRecording = async () => {
     try {
+      logger.log("[RECORDING] Requesting microphone access...")
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-      const mediaRecorder = new MediaRecorder(stream)
+      
+      // Determine best audio codec support
+      const audioType = MediaRecorder.isTypeSupported("audio/webm")
+        ? "audio/webm"
+        : MediaRecorder.isTypeSupported("audio/mp4")
+          ? "audio/mp4"
+          : "audio/wav"
+      
+      const mediaRecorder = new MediaRecorder(stream, {
+        mimeType: audioType === "audio/webm" ? "audio/webm" : undefined
+      })
+      
       mediaRecorderRef.current = mediaRecorder
       audioChunksRef.current = []
 
       mediaRecorder.ondataavailable = (event) => {
-        audioChunksRef.current.push(event.data)
+        if (event.data.size > 0) {
+          console.log("🎤 Audio chunk received, size:", event.data.size)
+          audioChunksRef.current.push(event.data)
+        }
       }
 
       mediaRecorder.onstop = async () => {
-        const audioBlob = new Blob(audioChunksRef.current, { type: "audio/webm" })
-        stream.getTracks().forEach((track) => track.stop())
+        const audioBlob = new Blob(audioChunksRef.current, { type: audioType })
+        console.log("🛑 Recording stopped, total blob size:", audioBlob.size)
+        
+        // Alert user if microphone was silent
+        if (audioBlob.size === 0) {
+          alert(
+            language === "hindi"
+              ? "माइक्रोफ़ोन शांत है! कृपया जोर से बोलें।"
+              : language === "marathi"
+                ? "मायक्रोफोन शांत आहे! कृपया मोठ्याने बोला."
+                : "Microphone is silent! Please speak louder."
+          )
+          setAppState("idle")
+          return
+        }
+        
+        logger.log("[RECORDING] Recording stopped, processing audio...")
+        
+        // Stop all tracks to free up microphone
+        stream.getTracks().forEach((track) => {
+          track.stop()
+        })
+        
         await processAudio(audioBlob)
+      }
+
+      mediaRecorder.onerror = (event) => {
+        logger.error(`[RECORDING] MediaRecorder error: ${event.error}`)
+        console.error("MediaRecorder error:", event.error)
+        setAppState("idle")
       }
 
       mediaRecorder.start()
       setAppState("recording")
+      logger.log(`[RECORDING] Started recording with codec: ${audioType}`)
     } catch (error) {
+      logger.error(`[RECORDING] Microphone access denied: ${error}`)
       console.error("Microphone access denied:", error)
+      setAppState("idle")
+      alert(
+        language === "hindi"
+          ? "माइक्रोफ़ोन का उपयोग करने की अनुमति दें"
+          : language === "marathi"
+            ? "मायक्रोफोन परवानगी देखील मिळणे आवश्यक आहे"
+            : "Please allow microphone access"
+      )
     }
   }
 
   const stopRecording = () => {
     if (mediaRecorderRef.current && appState === "recording") {
+      logger.log("[RECORDING] Stop button clicked")
+      console.log("🎤 [DEBUG] mediaRecorderRef.current:", mediaRecorderRef.current)
+      console.log("🎤 [DEBUG] appState before stop:", appState)
       mediaRecorderRef.current.stop()
       setAppState("processing")
+    } else {
+      console.log("🎤 [DEBUG] Cannot stop - mediaRecorder null or appState is", appState)
     }
   }
 
-  const processAudio = async (_audioBlob: Blob) => {
-    // BACKEND_INTEGRATION_POINT: POST /api/translate (Send Audio Blob)
-    await new Promise((resolve) => setTimeout(resolve, 2000))
-
-    const mockResponse = {
-      summary: [
-        "कल स्कूल की छुट्टी है - मकर संक्रांति के लिए",
-        "स्कूल सुबह 10 बजे खुलेगा 17 January को",
-        "Homework online portal पे submit करें",
-      ],
-      audioUrl: "",
+  const processAudio = async (audioBlob: Blob) => {
+    try {
+      setAppState("processing")
+      logger.log(`[PROCESS] Starting audio processing (size: ${audioBlob.size} bytes)`)
+      
+      // Build FormData with audio and optional context
+      const formData = new FormData()
+      formData.append("audio_file", audioBlob, `recording_${Date.now()}.webm`)
+      
+      if (uploadedPdfRef.current) {
+        formData.append("pdf_file", uploadedPdfRef.current)
+        logger.log("[PROCESS] Attached PDF for context")
+      }
+      
+      const langCode = language === "hindi" ? "hi" : language === "marathi" ? "mr" : "en"
+      formData.append("language", langCode)
+      
+      // Send to backend
+      logger.log(`[PROCESS] Sending request to ${API_URL}/api/chat`)
+      const response = await fetch(`${API_URL}/api/chat`, {
+        method: "POST",
+        body: formData,
+      })
+      
+      if (!response.ok) {
+        const errorText = await response.text()
+        throw new Error(`API error: ${response.status} - ${errorText}`)
+      }
+      
+      const data = await response.json()
+      logger.log("[PROCESS] Received response from backend")
+      
+      if (data.error) {
+        logger.error(`[PROCESS] Backend error: ${data.error}`)
+        throw new Error(data.error)
+      }
+      
+      // Parse response text into bullet points
+      const summary = data.answer
+        .split(/[।.!?]\s*|\n+/)
+        .filter((s: string) => s.trim().length > 0)
+        .map((s: string) => s.trim())
+        .slice(0, 5)
+      
+      setResponse({
+        summary: summary.length > 0 ? summary : [data.answer],
+        audioUrl: data.audio_url || "",
+      })
+      setAppState("response")
+      logger.log("[PROCESS] ✓ Response displayed")
+      
+      // Auto-play audio
+      if (data.audio_url) {
+        const fullUrl = `${API_URL}${data.audio_url}`
+        console.log("Playing audio from:", fullUrl)
+        const audio = new Audio(fullUrl)
+        audio.play().catch(e => console.error("Playback failed:", e))
+      }
+    } catch (error) {
+      logger.error(`[PROCESS] Error: ${error}`)
+      console.error("Error processing audio:", error)
+      
+      setResponse({
+        summary: [
+          language === "hindi"
+            ? "माफ़ करें, कुछ गलत हो गया। कृपया फिर से कोशिश करें।"
+            : language === "marathi"
+              ? "क्षमस्व, काही चूक झाली. कृपया पुन्हा प्रयत्न करा."
+              : "Sorry, something went wrong. Please try again."
+        ],
+        audioUrl: "",
+      })
+      setAppState("response")
     }
-    setResponse(mockResponse)
-    setAppState("response")
   }
 
   const handleMicClick = () => {
+    console.log("🎤 [DEBUG] handleMicClick triggered, current appState:", appState)
+    console.log("🎤 [DEBUG] API_URL:", API_URL)
+    console.log("🎤 [DEBUG] Env NEXT_PUBLIC_API_URL:", process.env.NEXT_PUBLIC_API_URL)
+    
     if (appState === "idle" || appState === "response") {
+      console.log("🎤 [DEBUG] Starting new recording...")
       setResponse(null)
       startRecording()
     } else if (appState === "recording") {
+      console.log("🎤 [DEBUG] Stopping recording...")
       stopRecording()
+    } else {
+      console.log("🎤 [DEBUG] App is in state:", appState, "- no action taken")
     }
   }
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
-    if (file) {
-      // BACKEND_INTEGRATION_POINT: handleFileUpload (PDF/Image)
-      console.log("File selected:", file.name)
-      setAppState("processing")
-      setTimeout(() => {
-        setResponse({
-          summary: ["Document मिल गया", "आपका circular/notice process हो रहा है", "Details जल्दी update होंगे"],
-          audioUrl: "",
-        })
-        setAppState("response")
-      }, 2000)
+    if (!file) {
+      return
     }
+
+    // Validate file size (max 25MB)
+    const maxSizeMB = 25
+    if (file.size > maxSizeMB * 1024 * 1024) {
+      logger.warn(`File too large: ${file.size} bytes`)
+      alert(
+        language === "hindi"
+          ? `फाइल बहुत बड़ी है। कृपया ${maxSizeMB}MB से कम की फाइल अपलोड करें।`
+          : language === "marathi"
+            ? `फाईल खूप मोठी आहे. कृपया ${maxSizeMB}MB पेक्षा कमी फाईल अपलोड करा.`
+            : `File is too large. Please upload a file smaller than ${maxSizeMB}MB.`
+      )
+      return
+    }
+
+    // Validate file type
+    const validTypes = ["application/pdf", "image/jpeg", "image/png"]
+    if (!validTypes.includes(file.type)) {
+      logger.warn(`Invalid file type: ${file.type}`)
+      alert(
+        language === "hindi"
+          ? "कृपया PDF, JPG, या PNG फाइल अपलोड करें।"
+          : language === "marathi"
+            ? "कृपया PDF, JPG, किंवा PNG फाइल अपलोड करा."
+            : "Please upload a PDF, JPG, or PNG file."
+      )
+      return
+    }
+
+    uploadedPdfRef.current = file
+    logger.log(`[FILE] Uploaded: ${file.name} (${(file.size / 1024).toFixed(2)} KB)`)
+    
+    alert(
+      language === "hindi"
+        ? "फाइल अपलोड हो गई! अब माइक बटन दबाकर सवाल पूछें।"
+        : language === "marathi"
+          ? "फाईल अपलोड झाली! आता माइक बटण दाबून प्रश्न विचारा."
+          : "File uploaded! Now click the mic button to ask a question."
+    )
   }
 
-  const handleKeyboardClick = () => {
+  const handleKeyboardClick = async () => {
     const query = prompt(
       language === "hindi" ? "अपना सवाल लिखें:" : language === "marathi" ? "तुमचा प्रश्न लिहा:" : "Type your question:",
     )
-    if (query) {
+    
+    if (!query || query.trim() === "") {
+      return
+    }
+
+    try {
       setAppState("processing")
-      setTimeout(() => {
-        setResponse({
-          summary: ["आपका सवाल मिला: " + query, "जवाब ढूंढ रहे हैं...", "कृपया थोड़ा इंतज़ार करें"],
-          audioUrl: "",
-        })
-        setAppState("response")
-      }, 2000)
+      logger.log("[KEYBOARD] Processing text query")
+      
+      // Build FormData with text query and optional context
+      const formData = new FormData()
+      formData.append("text_query", query)
+      
+      if (uploadedPdfRef.current) {
+        formData.append("pdf_file", uploadedPdfRef.current)
+        logger.log("[KEYBOARD] Attached PDF for context")
+      }
+      
+      const langCode = language === "hindi" ? "hi" : language === "marathi" ? "mr" : "en"
+      formData.append("language", langCode)
+      
+      // Send to backend
+      logger.log(`[KEYBOARD] Sending request to ${API_URL}/api/chat`)
+      const response = await fetch(`${API_URL}/api/chat`, {
+        method: "POST",
+        body: formData,
+      })
+      
+      if (!response.ok) {
+        const errorText = await response.text()
+        throw new Error(`API error: ${response.status} - ${errorText}`)
+      }
+      
+      const data = await response.json()
+      logger.log("[KEYBOARD] Received response from backend")
+      
+      if (data.error) {
+        logger.error(`[KEYBOARD] Backend error: ${data.error}`)
+        throw new Error(data.error)
+      }
+      
+      // Parse response text
+      const summary = data.answer
+        .split(/[।.!?]\s*|\n+/)
+        .filter((s: string) => s.trim().length > 0)
+        .map((s: string) => s.trim())
+        .slice(0, 5)
+      
+      setResponse({
+        summary: summary.length > 0 ? summary : [data.answer],
+        audioUrl: data.audio_url || "",
+      })
+      setAppState("response")
+      logger.log("[KEYBOARD] ✓ Response displayed")
+      
+      // Auto-play audio
+      if (data.audio_url) {
+        const fullUrl = `${API_URL}${data.audio_url}`
+        console.log("Playing audio from:", fullUrl)
+        const audio = new Audio(fullUrl)
+        audio.play().catch(e => console.error("Playback failed:", e))
+      }
+    } catch (error) {
+      logger.error(`[KEYBOARD] Error: ${error}`)
+      console.error("Error processing text query:", error)
+      
+      setResponse({
+        summary: [
+          language === "hindi"
+            ? "माफ़ करें, कुछ गलत हो गया। कृपया फिर से कोशिश करें।"
+            : language === "marathi"
+              ? "क्षमस्व, काही चूक झाली. कृपया पुन्हा प्रयत्न करा."
+              : "Sorry, something went wrong. Please try again."
+        ],
+        audioUrl: "",
+      })
+      setAppState("response")
     }
   }
 
@@ -408,9 +652,38 @@ export default function SetuApp() {
                 <div className="bg-white rounded-2xl p-5 shadow-sm border border-orange-100">
                   <h2 className="text-xl font-bold text-[#1A365D] mb-4">{t.yourAnswer}</h2>
 
-                  <button className="w-full bg-[#1A365D] text-white py-4 rounded-xl flex items-center justify-center gap-3 mb-6">
-                    <Play className="w-8 h-8" />
-                    <span className="text-xl font-bold">{t.listenAudio}</span>
+                  <button
+                    onClick={() => {
+                      if (response.audioUrl) {
+                        try {
+                          const fullAudioUrl = new URL(response.audioUrl, API_URL).toString()
+                          console.log("🔊 Playing from response button:", fullAudioUrl)
+                          if (!audioPlayerRef.current) {
+                            audioPlayerRef.current = new Audio()
+                          }
+                          const audio = audioPlayerRef.current
+                          audio.src = fullAudioUrl
+                          setIsPlayingAudio(true)
+                          audio.onended = () => setIsPlayingAudio(false)
+                          audio.onerror = () => setIsPlayingAudio(false)
+                          audio.play().catch((err) => {
+                            console.error("❌ Audio Playback Failed. Possible Autoplay block.", err)
+                            setIsPlayingAudio(false)
+                          })
+                        } catch (err) {
+                          console.error("Error setting up audio:", err)
+                          setIsPlayingAudio(false)
+                        }
+                      }
+                    }}
+                    className={`w-full py-4 rounded-xl flex items-center justify-center gap-3 mb-6 transition-all font-semibold text-lg ${
+                      isPlayingAudio
+                        ? "bg-[#22C55E] text-white animate-pulse"
+                        : "bg-[#1A365D] text-white hover:bg-[#1A365D]/90"
+                    }`}
+                  >
+                    <Play className={`w-8 h-8 ${isPlayingAudio ? "animate-spin" : ""}`} />
+                    <span>{isPlayingAudio ? "🔊 Playing..." : t.listenAudio}</span>
                   </button>
 
                   <div className="space-y-3">
