@@ -1,0 +1,30 @@
+# --- Python & Cache ---
+__pycache__/
+backend/core/__pycache__
+*.py[cod]
+*.pyc
+*$py.class
+.pytest_cache/
+.venv/
+venv/
+ENV/
+env/
+
+# --- Environment & Secrets ---
+.env
+.flaskenv
+
+# --- Database & Logs ---
+*.db
+*.sqlite3
+*.log
+
+# --- Project Specific (Audio & Temp) ---
+# Ignore generated MP3s to save repo space
+static/audio/*
+# Keep the directory structure but ignore contents
+!static/audio/.gitkeep
+
+# Ignore temp files from PDF processing
+temp_*
+*.pdf

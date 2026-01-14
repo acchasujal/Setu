@@ -34,6 +34,7 @@ logger.info("[INIT] Static folder mounted at /static")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
+        "https://setu-pwa.vercel.app", # Your Vercel URL
         "http://localhost:3000",      # Next.js dev server
         "http://127.0.0.1:3000",      # Localhost variant
         "http://localhost:8000",      # Backend self
