@@ -46,6 +46,9 @@ def _get_whisper_model(model_size: str = "base"):
 async def transcribe_audio(audio_file_path: str, language: Optional[str] = None) -> str:
     """
     Transcribe audio file to text using OpenAI Whisper.
+    
+    Optimized for Hinglish (Hindi + English) and Indian accents with specialized
+    vocabulary and reduced hallucination parameters.
 
     Args:
         audio_file_path: Path to audio file (.webm, .wav, .mp3, etc.)
@@ -58,10 +61,27 @@ async def transcribe_audio(audio_file_path: str, language: Optional[str] = None)
         model = _get_whisper_model()
         logger.info(f"[AUDIO] Transcribing file: {audio_file_path}")
         
+        # Optimized vocabulary prompt for Indian education context
+        vocab_prompt = (
+            "Setu help. Scholarship application form, kab bharna hai? "
+            "Kya scholarship documents submit ho gaye? Last date 20 July hai. "
+            "Income certificate, caste certificate, domicile, marksheet, Aadhar card. "
+            "School notice, circular, fee structure, admission procedure. "
+            "Namaste, mujhe results check karne hain. "
+            "Maza mulga, maza mulgi, shikshan, shala, mahiti pahije. "
+            "Hinglish transcription for Indian parents education portal."
+        )
+        
         # Whisper is CPU-bound and blocking, so we run it in a separate thread
         # to prevent blocking the FastAPI event loop.
         result = await asyncio.to_thread(
-            model.transcribe, audio_file_path, language=language
+            model.transcribe,
+            audio_file_path,
+            language=language,
+            initial_prompt=vocab_prompt,
+            condition_on_previous_text=False,
+            temperature=0.0,
+            fp16=False
         )
         
         transcribed_text = result["text"].strip()

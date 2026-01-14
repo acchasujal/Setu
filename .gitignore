@@ -58,5 +58,3 @@ htmlcov/
 .DS_Store
 Thumbs.db
 
-backend/core/__pycache__/pdf_reader.cpython-313.pyc
-backend/core/__pycache__/processor.cpython-313.pyc
