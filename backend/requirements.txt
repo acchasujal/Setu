@@ -1,10 +1,16 @@
-fastapi
-uvicorn
-pdfplumber
-python-dotenv
-google-genai
-python-multipart
-openai-whisper
-edge-tts
-sqlalchemy
-aiofiles
+# Web Server
+fastapi==0.128.0
+uvicorn==0.40.0
+python-multipart==0.0.21
+python-dotenv==1.2.1
+aiofiles==25.1.0
+
+# AI & Processing
+google-genai==1.57.0
+pdfplumber==0.11.9
+openai-whisper==20250625
+edge-tts==7.2.7
+
+# Database & Infrastructure
+SQLAlchemy==2.0.45
+setuptools==80.9.0
