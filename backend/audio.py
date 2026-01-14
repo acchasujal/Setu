@@ -2,93 +2,80 @@
 Audio processing module for SETU backend.
 
 Handles:
-- Speech-to-Text (STT) using OpenAI Whisper
+- Cloud-based Speech-to-Text (STT) using Groq (Whisper-large-v3-turbo)
 - Text-to-Speech (TTS) using Edge-TTS
 """
 
 import logging
-import whisper
-import edge_tts
+import os
 import uuid
 import asyncio
+import edge_tts
 from pathlib import Path
 from typing import Optional
+from groq import Groq
+from dotenv import load_dotenv
+
+# Load environment variables (GROQ_API_KEY)
+load_dotenv()
 
 # Configure logging
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
-# Whisper model cache
-_whisper_model = None
-
-
-def _get_whisper_model(model_size: str = "base"):
-    """
-    Lazy load Whisper model to avoid heavy load on import.
-    Falls back to 'tiny' if the requested model fails.
-    """
-    global _whisper_model
-    if _whisper_model is None:
-        try:
-            logger.info(f"[AUDIO] Loading Whisper model: {model_size}")
-            _whisper_model = whisper.load_model(model_size)
-        except Exception as e:
-            logger.warning(f"[AUDIO] Failed to load '{model_size}' model: {e}")
-            logger.info("[AUDIO] Falling back to 'tiny' model...")
-            try:
-                _whisper_model = whisper.load_model("tiny")
-            except Exception as e2:
-                logger.error(f"[AUDIO] Could not load Whisper model: {e2}")
-                raise
-    return _whisper_model
-
+# Initialize Groq Client
+GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
+client = Groq(api_key=GROQ_API_KEY)
 
 async def transcribe_audio(audio_file_path: str, language: Optional[str] = None) -> str:
     """
-    Transcribe audio file to text using OpenAI Whisper.
+    Transcribe audio file to text using Groq Cloud Whisper API.
     
-    Optimized for Hinglish (Hindi + English) and Indian accents with specialized
-    vocabulary and reduced hallucination parameters.
+    Optimized for Hinglish (Hindi + English) and Indian accents using 
+    the whisper-large-v3-turbo model.
 
     Args:
         audio_file_path: Path to audio file (.webm, .wav, .mp3, etc.)
-        language: Optional language code (e.g., 'hi', 'en'). If None, auto-detect.
+        language: Optional language code (e.g., 'hi', 'en', 'mr').
 
     Returns:
         Transcribed text as string. Empty string if transcription fails.
     """
+    if not GROQ_API_KEY:
+        logger.error("[AUDIO] GROQ_API_KEY not found in environment variables.")
+        return ""
+
     try:
-        model = _get_whisper_model()
-        logger.info(f"[AUDIO] Transcribing file: {audio_file_path}")
+        logger.info(f"[AUDIO] Cloud Transcribing: {audio_file_path}")
         
         # Optimized vocabulary prompt for Indian education context
+        # This helps the model recognize Hinglish terms correctly.
         vocab_prompt = (
             "Setu help. Scholarship application form, kab bharna hai? "
             "Kya scholarship documents submit ho gaye? Last date 20 July hai. "
             "Income certificate, caste certificate, domicile, marksheet, Aadhar card. "
             "School notice, circular, fee structure, admission procedure. "
             "Namaste, mujhe results check karne hain. "
-            "Maza mulga, maza mulgi, shikshan, shala, mahiti pahije. "
-            "Hinglish transcription for Indian parents education portal."
+            "Maza mulga, maza mulgi, shikshan, shala, mahiti pahije."
         )
+
+        with open(audio_file_path, "rb") as file:
+            # Groq is 100x faster than local CPU transcription
+            transcription = await asyncio.to_thread(
+                client.audio.transcriptions.create,
+                file=(os.path.basename(audio_file_path), file.read()),
+                model="whisper-large-v3-turbo",
+                response_format="text",
+                language=language,
+                prompt=vocab_prompt
+            )
         
-        # Whisper is CPU-bound and blocking, so we run it in a separate thread
-        # to prevent blocking the FastAPI event loop.
-        result = await asyncio.to_thread(
-            model.transcribe,
-            audio_file_path,
-            language=language,
-            initial_prompt=vocab_prompt,
-            condition_on_previous_text=False,
-            temperature=0.0,
-            fp16=False
-        )
-        
-        transcribed_text = result["text"].strip()
-        logger.info(f"[AUDIO] Transcribed: {transcribed_text[:100]}...")
+        transcribed_text = transcription.strip()
+        logger.info(f"[AUDIO] Result: {transcribed_text[:100]}...")
         return transcribed_text
+
     except Exception as e:
-        logger.error(f"[AUDIO] Error transcribing audio: {e}")
+        logger.error(f"[AUDIO] Groq API Error: {e}")
         return ""
 
 
@@ -101,15 +88,14 @@ async def text_to_speech(text: str, lang: str = "hi") -> Optional[str]:
         lang: Language code (default: 'hi' for Hindi)
 
     Returns:
-        URL path to the generated audio file (e.g., '/static/audio/xxx.mp3')
-        Returns None if TTS fails.
+        URL path to the generated audio file.
     """
     try:
-        # Map language codes to Edge-TTS voice names
+        # Map language codes to natural-sounding regional voices
         voice_map = {
-            "hi": "hi-IN-MadhurNeural",  # Hindi (India) - Male voice
-            "en": "en-US-AriaNeural",    # English (US) - Female voice
-            "mr": "mr-IN-AarohiNeural",  # Marathi (India) - Female voice
+            "hi": "hi-IN-MadhurNeural",   # Hindi (India) - Male
+            "en": "en-IN-NeerjaNeural",   # English (India) - Female (Better for Indian context)
+            "mr": "mr-IN-AarohiNeural",   # Marathi (India) - Female
         }
 
         voice = voice_map.get(lang, voice_map["hi"])
@@ -118,21 +104,18 @@ async def text_to_speech(text: str, lang: str = "hi") -> Optional[str]:
         audio_dir = Path("static/audio")
         audio_dir.mkdir(parents=True, exist_ok=True)
 
-        # Generate unique filename
+        # Generate unique filename for this session
         audio_filename = f"{uuid.uuid4().hex}.mp3"
         audio_path = audio_dir / audio_filename
 
-        # Generate speech
-        logger.info(f"[AUDIO] Generating speech for: {text[:50]}...")
+        logger.info(f"[AUDIO] Generating speech for language: {lang}")
         communicate = edge_tts.Communicate(text, voice)
         
-        # FIX: 'communicate.save' is already an async coroutine.
-        # Do NOT use asyncio.to_thread here. Await it directly.
+        # Save the audio file asynchronously
         await communicate.save(str(audio_path))
 
-        # Return URL path for frontend
+        # Return relative URL path for the frontend to play
         audio_url = f"/static/audio/{audio_filename}"
-        logger.info(f"[AUDIO] Generated audio: {audio_url}")
         return audio_url
 
     except Exception as e:

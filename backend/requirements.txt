@@ -8,7 +8,7 @@ aiofiles==25.1.0
 # AI & Processing
 google-genai==1.57.0
 pdfplumber==0.11.9
-openai-whisper==20250625
+groq==0.11.0
 edge-tts==7.2.7
 
 # Database & Infrastructure
