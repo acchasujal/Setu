@@ -141,6 +141,7 @@ const exampleQuestions: Record<Language, { text: string; icon: "calendar" | "mon
 }
 
 export default function SetuApp() {
+  const [mounted, setMounted] = useState(false)
   const [appState, setAppState] = useState<AppState>("idle")
   const [showNotices, setShowNotices] = useState(false)
   const [language, setLanguage] = useState<Language>("hindi")
@@ -157,6 +158,15 @@ export default function SetuApp() {
   const t = translations[language]
 
   useEffect(() => {
+    audioPlayerRef.current = new Audio()
+
+  return () => {
+    if (audioPlayerRef.current) {
+      audioPlayerRef.current.pause()
+      audioPlayerRef.current.src = ""
+      audioPlayerRef.current = null
+    }
+  
     // Log API configuration on mount for debugging
     console.log("[SETU-INIT] Component mounted")
     console.log("[SETU-INIT] API_URL:", API_URL)
@@ -173,7 +183,10 @@ export default function SetuApp() {
       { id: "4", title: "PTM Scheduled", date: "25 Jan", tag: "Rohan - Class 5B", type: "general" },
     ]
     setNotices(mockNotices)
-  }, [])
+    setMounted(true)
+
+  }
+}, [])
 
   const getFooterText = () => {
     switch (appState) {
@@ -278,6 +291,26 @@ export default function SetuApp() {
     }
   }
 
+  const playAudio = (url: string) => {
+    const audio = audioPlayerRef.current
+    if (!audio) return
+  
+    audio.pause()
+    audio.src = url
+    audio.currentTime = 0
+  
+    setIsPlayingAudio(true)
+  
+    audio.onended = () => setIsPlayingAudio(false)
+    audio.onerror = () => setIsPlayingAudio(false)
+  
+    audio.play().catch((err) => {
+      console.error("Audio playback failed:", err)
+      setIsPlayingAudio(false)
+    })
+  }
+  
+
   const processAudio = async (audioBlob: Blob) => {
     try {
       setAppState("processing")
@@ -333,8 +366,10 @@ export default function SetuApp() {
       if (data.audio_url) {
         const fullUrl = `${API_URL}${data.audio_url}`
         console.log("Playing audio from:", fullUrl)
-        const audio = new Audio(fullUrl)
-        audio.play().catch(e => console.error("Playback failed:", e))
+        if (data.audio_url) {
+          playAudio(`${API_URL}${data.audio_url}`)
+        }
+      
       }
     } catch (error) {
       logger.error(`[PROCESS] Error: ${error}`)
@@ -550,7 +585,10 @@ export default function SetuApp() {
   }
 
   if (showNotices) {
-    return (
+    if (!mounted) {
+    return null}
+    (
+    
       <main className="min-h-screen bg-[#FFF8F5] flex justify-center">
         <div className="w-full max-w-[450px] min-h-screen flex flex-col">
           <header className="bg-[#1A365D] text-white py-6 px-6 flex items-center gap-4">
