@@ -45,22 +45,36 @@ Mac: brew install ffmpeg
 Bash
 
 cd backend
+
 python -m venv venv
+
 source venv/bin/activate  # Windows: venv\Scripts\activate
+
 pip install -r requirements.txt
+
 Create .env file
+
 echo "GEMINI_API_KEY=your_key_here" > .env
+
+echo "GROQ_API_KEY=your_groq_key" > .env
+
 Start server (0.0.0.0 is required for mobile testing)
+
 uvicorn app:app --reload --host 0.0.0.0 --port 8000
 
 # 3. Frontend Setup (Next.js)
 Bash
 
 cd frontend
+
 npm install
+
  Configure your local backend IP
+ 
 echo "NEXT_PUBLIC_API_URL=http://localhost:8000" > .env.local
+
 Run with Webpack to support PWA logic
+
 npm run dev
 
 ## 🏗️ Project Structure
