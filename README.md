@@ -1,25 +1,35 @@
-### 🎓 Setu: The Voice-First AI Bridge for Education
-Bridging the linguistic and digital divide for parents in India.
+# 🎓 Setu: The Voice-First AI Bridge for Education
+Tagline: Turning passive parents into active guardians by making school data accessible, understandable, and actionable in their own language.
 
-Setu (meaning "Bridge") is a mobile-first, voice-native GenAI assistant designed for parents who face linguistic and literacy barriers. It transforms complex school circulars (PDFs/Notices) into simplified, actionable audio explanations in local dialects using a "Zero-UI" approach.
+Setu (meaning "Bridge") is a mobile-first, voice-native GenAI assistant designed for semi-literate parents in India. It creates an Accessibility Layer over the education system, transforming complex school circulars, report cards, and timetables into simplified, actionable audio explanations in local dialects.
 
 ## ✨ Key Features
-Voice-First Interaction: Optimized for Indian accents and code-switching (e.g., "Hinglish") using OpenAI Whisper.
+Zero-UI Interaction: A single giant microphone button designed for digital novices. No typing, no chat windows.
 
-Document Intelligence (RAG): Uses Gemini 1.5 Flash to extract accurate, actionable steps from real school circulars to prevent misinformation.
+Vernacular Intelligence: Optimized for "Hinglish" and code-switching queries (e.g., "Iska result kaisa hai?") using a fine-tuned Whisper implementation.
 
-Vernacular Output: Delivers natural-sounding local voice explanations via Edge-TTS.
+Digital School Bag (New): Stores uploaded circulars, timetables, and report cards in a persistent database so parents can ask questions later without re-uploading.
 
-Offline-Ready PWA: A lightweight Progressive Web App designed for low-bandwidth environments and high accessibility.
+Actionable RAG: Uses Gemini 1.5 Flash to extract deadlines, fees, and marks from complex tables and text-heavy PDFs with high accuracy.
+
+Deadline Reminders: Automatically tracks exam dates and fee deadlines, offering to set audio reminders for the parent.
+
+Natural Voice Output: Delivers warm, encouraging explanations in local dialects using Microsoft Edge-TTS, building trust with the user.
+
+Offline-Ready PWA: Works on low-end Android devices and 2G networks with robust caching.
 
 ## 🛠️ Tech Stack
-Frontend: Next.js 16 (React), Tailwind CSS, Lucide React.
+Frontend: Next.js 16 (PWA), Tailwind CSS, Framer Motion.
 
-Backend: FastAPI (Python), Google Generative AI (Gemini 1.5 Flash).
+Backend: FastAPI (Python), SQLite (Notice Storage).
 
-Senses: OpenAI Whisper (STT), Microsoft Edge-TTS (Speech Synthesis).
+AI Brain (Reasoning): Google Gemini 1.5 Flash (Optimized for Long-Context PDFs).
 
-Infrastructure: Webpack-powered PWA, PDFPlumber for document parsing.
+AI Ears (STT): Groq Cloud (Whisper-large-v3-turbo) for sub-second transcription.
+
+AI Voice (TTS): Microsoft Edge-TTS (Neural Regional Voices).
+
+Infrastructure: Render (Backend Container), Vercel (Frontend Hosting).
 
 ## 🚀 Installation & Setup
 # 1. Prerequisites
