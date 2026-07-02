@@ -3,6 +3,8 @@ Tagline: Turning passive parents into active guardians by making school data acc
 
 Setu (meaning "Bridge") is a mobile-first, voice-native GenAI assistant designed for semi-literate parents in India. It creates an Accessibility Layer over the education system, transforming complex school circulars, report cards, and timetables into simplified, actionable audio explanations in local dialects.
 
+Deployed Link : [Setu](https://setu-pwa.vercel.app/)
+
 ## ✨ Key Features
 Zero-UI Interaction: A single giant microphone button designed for digital novices. No typing, no chat windows.
 
